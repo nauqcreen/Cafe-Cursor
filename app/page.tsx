@@ -359,7 +359,7 @@ function HomeContent() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100">
       <header className="sticky top-0 z-10 border-b border-zinc-800/80 bg-[#0a0a0a]/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
           <CursorLogo />
           <a
             href="https://github.com/nauqcreen/Cafe-Cursor"
@@ -389,7 +389,7 @@ function HomeContent() {
           </a>
         </div>
       </header>
-      <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 sm:py-16">
+      <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
         {/* Hero */}
         <header className="mb-10 text-center">
           <p className="mb-2 text-sm font-medium uppercase tracking-wider text-zinc-500">
@@ -480,6 +480,11 @@ function HomeContent() {
           </div>
         )}
 
+        {/* Two-column layout: left = input, right = results */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+        {/* ── LEFT COLUMN ── */}
+        <div className="flex flex-col gap-4">
+
         {/* Input section */}
         <Card className="border-zinc-800 bg-zinc-900/50 shadow-none">
           <CardHeader className="pb-4">
@@ -559,6 +564,8 @@ function HomeContent() {
           </CardContent>
         </Card>
 
+        </div> {/* end Input Card */}
+
         {/* Terminal Integration */}
         <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
           <div className="mb-2 flex items-center gap-2">
@@ -603,11 +610,16 @@ function HomeContent() {
           )}
         </div>
 
+        </div> {/* end LEFT COLUMN */}
+
+        {/* ── RIGHT COLUMN ── */}
+        <div className="flex flex-col gap-4">
+
         {/* Results: show when generation/refining has started or finished */}
         {(isGenerating || isRefining || generatedRules !== "") && (
           <Card
             className={cn(
-              "mt-8 border-zinc-800 bg-zinc-900/50 shadow-none transition-shadow duration-300",
+              "border-zinc-800 bg-zinc-900/50 shadow-none transition-shadow duration-300",
               "animate-in fade-in slide-in-from-bottom-4 duration-300",
               (isGenerating || isRefining) &&
                 "border-blue-500/40 shadow-[0_0_20px_-5px_rgba(59,130,246,0.35)]"
@@ -626,7 +638,7 @@ function HomeContent() {
             <CardContent className="flex flex-col gap-4">
               <div
                 ref={codeContainerRef}
-                className="relative max-h-[360px] overflow-auto rounded-lg border border-zinc-700 bg-[#1e1e1e]"
+                className="relative max-h-[60vh] overflow-auto rounded-lg border border-zinc-700 bg-[#1e1e1e]"
               >
                 <SyntaxHighlighter
                   language="markdown"
@@ -742,7 +754,7 @@ function HomeContent() {
 
         {/* Share badge — only after rules are generated */}
         {generatedRules !== "" && (
-          <div className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <svg viewBox="0 0 16 16" className="size-3.5 shrink-0 fill-current text-zinc-500" aria-hidden="true">
@@ -804,6 +816,8 @@ function HomeContent() {
             </div>
           </div>
         )}
+        </div> {/* end RIGHT COLUMN */}
+        </div> {/* end two-column grid */}
         </div>
     </div>
   );
