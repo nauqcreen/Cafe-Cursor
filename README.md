@@ -1,36 +1,129 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CursorContext Architect
 
-## Getting Started
+> Dán link GitHub repo → nhận file `.cursorrules` được tối ưu cho dự án của bạn trong vài giây.
 
-First, run the development server:
+**Live:** [cafe-cursor-sepia.vercel.app](https://cafe-cursor-sepia.vercel.app)
+
+---
+
+## Tính năng
+
+| | |
+|---|---|
+| **Generate từ GitHub repo** | Tự động fetch `package.json`, `README`, cấu trúc thư mục gốc, rồi đưa vào Claude để sinh rules |
+| **Generate từ mô tả thủ công** | Dán `package.json` hoặc liệt kê tech stack — không cần repo public |
+| **Streaming real-time** | Rules được stream về từng dòng, không phải chờ toàn bộ |
+| **Refine rules** | Nhập yêu cầu điều chỉnh, AI viết lại dựa trên rules hiện có |
+| **Export to GitHub Gist** | Chia sẻ rules dưới dạng public Gist chỉ một click |
+| **CLI (curl)** | Dùng thẳng trong terminal, không cần mở browser |
+| **🔥 Global Trending** | Bảng xếp hạng repo được generate nhiều nhất, lưu trên Redis |
+| **Recent Generations** | localStorage lưu 5 repo gần nhất, click để generate lại ngay |
+
+---
+
+## CLI
+
+Không cần browser. Chạy thẳng trong terminal:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Lấy rules cho một repo bất kỳ
+curl -sL "https://cafe-cursor-sepia.vercel.app/api/raw?repo=shadcn-ui/ui" > .cursorrules
+
+# Hoặc dùng full GitHub URL
+curl -sL "https://cafe-cursor-sepia.vercel.app/api/raw?repo=https://github.com/vercel/next.js" > .cursorrules
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Chạy local
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**1. Clone & cài dependencies**
+```bash
+git clone https://github.com/nauqcreen/Cafe-Cursor.git
+cd Cafe-Cursor
+npm install
+```
 
-## Learn More
+**2. Tạo `.env.local`**
+```env
+ANTHROPIC_API_KEY=sk-ant-...
+GITHUB_TOKEN=github_pat_...      # để tạo Gist (optional)
+REDIS_URL=redis://...            # để dùng Global Trending (optional)
+```
 
-To learn more about Next.js, take a look at the following resources:
+**3. Chạy dev server**
+```bash
+npm run dev
+# → http://localhost:3000
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Kiến trúc
 
-## Deploy on Vercel
+```
+app/
+├── page.tsx                 # UI chính — client component, streaming, state
+├── api/
+│   ├── generate/route.ts    # POST: generate hoặc refine rules (streaming)
+│   ├── raw/route.ts         # GET:  CLI endpoint, trả plain text stream
+│   ├── gist/route.ts        # POST: tạo GitHub Gist
+│   └── trending/route.ts    # GET:  top 5 repos từ Redis sorted set
+lib/
+├── repo-utils.ts            # fetchPackageJson, fetchRepoTree, buildAnthropicStream, trackRepo
+├── redis.ts                 # ioredis singleton
+└── utils.ts                 # cn()
+scripts/
+└── fetch-rules.sh           # Batch fetch .cursorrules cho nhiều repo
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Data flow (generate từ GitHub URL):**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+Client  →  POST /api/generate  →  GitHub API (package.json + README + tree)
+                               →  Claude claude-3-5-haiku (streaming)
+                               →  ReadableStream về client
+                               →  Redis zincrby (background, non-blocking)
+```
+
+---
+
+## Biến môi trường
+
+| Biến | Bắt buộc | Mô tả |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | ✅ | Claude API key |
+| `GITHUB_TOKEN` | ⬜ | Personal Access Token để tạo Gist |
+| `REDIS_URL` | ⬜ | Redis connection string cho Global Trending |
+
+---
+
+## Stack
+
+- **Framework:** Next.js 16 (App Router, Turbopack)
+- **AI:** Anthropic Claude (`@anthropic-ai/sdk`)
+- **UI:** Shadcn UI, Tailwind CSS v4, Radix UI, Lucide
+- **Database:** Redis via `ioredis` (Upstash/Redis Labs)
+- **Syntax highlight:** `react-syntax-highlighter` + Prism `vscDarkPlus`
+- **Deploy:** Vercel
+
+---
+
+## Scripts tiện ích
+
+```bash
+# Batch fetch .cursorrules cho 5 repo nổi tiếng
+./scripts/fetch-rules.sh
+
+# Dùng URL khác (e.g. local dev)
+./scripts/fetch-rules.sh http://localhost:3000
+
+# Lưu vào thư mục riêng
+OUT_DIR=./rules ./scripts/fetch-rules.sh
+```
+
+---
+
+## License
+
+MIT
