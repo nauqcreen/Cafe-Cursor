@@ -84,19 +84,17 @@ export async function fetchFromRepo(
   return null;
 }
 
-export async function fetchPackageJson(owner: string, repo: string): Promise<PackageJson> {
-  let lastError: Error | null = null;
+export async function fetchPackageJson(owner: string, repo: string): Promise<PackageJson | null> {
   for (const branch of BRANCHES) {
     const url = `https://fastly.jsdelivr.net/gh/${owner}/${repo}@${branch}/package.json`;
     try {
       const res = await fetch(url, { cache: "no-store" });
       if (res.ok) return (await res.json()) as PackageJson;
-      lastError = new Error(`Status ${res.status}`);
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
+    } catch {
+      // try next branch
     }
   }
-  throw lastError ?? new Error("Could not fetch package.json");
+  return null;
 }
 
 export async function fetchRepoTree(owner: string, repo: string): Promise<string | null> {
@@ -148,7 +146,11 @@ export async function buildRepoPromptInput(owner: string, repo: string): Promise
     fetchFromRepo(owner, repo, "README.md"),
     fetchRepoTree(owner, repo),
   ]);
-  const techStack = techStackFromPackageJson(pkg);
+
+  const techStack = pkg
+    ? techStackFromPackageJson(pkg)
+    : `Repository: ${owner}/${repo} (no package.json found — infer stack from README and directory structure)`;
+
   const treeSection =
     treeRaw && treeRaw.trim().length > 0 ? `\n\nRoot directory structure:\n${treeRaw}` : "";
   const readmeSection =
@@ -160,17 +162,65 @@ export async function buildRepoPromptInput(owner: string, repo: string): Promise
 
 // ── Anthropic streaming ───────────────────────────────────────────────────────
 
+const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
+
+/** Probe Anthropic API; returns null if OK, or { status, message } if blocked (e.g. 403). */
+export async function probeAnthropic(anthropic: Anthropic): Promise<{ status: number; message: string } | null> {
+  try {
+    await anthropic.messages.create({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 1,
+      messages: [{ role: "user", content: "Hi" }],
+    });
+    return null;
+  } catch (err: unknown) {
+    const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : 500;
+    const message =
+      status === 403
+        ? "Anthropic API không khả dụng từ khu vực của bạn (403). Thử VPN hoặc chạy từ vùng được hỗ trợ."
+        : err instanceof Error ? err.message : "Anthropic request failed.";
+    return { status, message };
+  }
+}
+
 export function buildAnthropicStream(
   anthropic: Anthropic,
   systemPrompt: string,
   userContent: string
 ): ReadableStream {
   const encoder = new TextEncoder();
+  const ERROR_403_MSG =
+    "Anthropic API không khả dụng từ khu vực của bạn (403). Thử VPN hoặc chạy từ vùng được hỗ trợ.";
+
   return new ReadableStream({
     async start(controller) {
+      let closed = false;
+      const finish = (err?: Error) => {
+        if (closed) return;
+        closed = true;
+        if (err) {
+          const status = typeof (err as { status?: number }).status === "number" ? (err as { status: number }).status : 0;
+          if (status === 403) {
+            try {
+              controller.enqueue(encoder.encode(JSON.stringify({ error: ERROR_403_MSG }) + "\n"));
+              controller.close();
+            } catch {
+              controller.error(err);
+            }
+          } else {
+            controller.error(err);
+          }
+        } else {
+          try {
+            controller.close();
+          } catch {
+            // already closed
+          }
+        }
+      };
       try {
         const messageStream = anthropic.messages.stream({
-          model: "claude-sonnet-4-20250514",
+          model: ANTHROPIC_MODEL,
           max_tokens: 8192,
           system: systemPrompt,
           messages: [{ role: "user", content: userContent }],
@@ -178,15 +228,17 @@ export function buildAnthropicStream(
         messageStream.on("text", (delta) => {
           if (delta) controller.enqueue(encoder.encode(delta));
         });
-        messageStream.once("end", () => controller.close());
+        messageStream.once("end", () => finish());
         messageStream.on("error", (err) => {
           console.error("[anthropic stream]", err);
-          controller.error(err);
+          finish(err as Error & { status?: number });
         });
         await messageStream.done();
+        finish();
       } catch (err) {
         console.error("[anthropic stream]", err);
-        controller.error(err);
+        const e = err instanceof Error ? err : new Error(String(err));
+        finish(e as Error & { status?: number });
       }
     },
   });

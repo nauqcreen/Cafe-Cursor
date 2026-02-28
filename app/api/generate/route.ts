@@ -4,6 +4,7 @@ import {
   parseGithubUrl,
   buildRepoPromptInput,
   buildAnthropicStream,
+  probeAnthropic,
   trackRepo,
   SYSTEM_PROMPT,
   REFINE_SYSTEM_PROMPT,
@@ -35,6 +36,8 @@ export async function POST(request: Request) {
       typeof body.refinementPrompt === "string" ? body.refinementPrompt.trim() : undefined;
 
     if (existingRules && refinementPrompt) {
+      const probe = await probeAnthropic(anthropic);
+      if (probe) return NextResponse.json({ error: probe.message }, { status: probe.status });
       const userContent = `Here are the current .cursorrules:\n\n${existingRules}\n\nThe user requested this change: ${refinementPrompt}`;
       const stream = buildAnthropicStream(anthropic, REFINE_SYSTEM_PROMPT, userContent);
       return new Response(stream, { headers: STREAM_HEADERS });
@@ -69,6 +72,8 @@ export async function POST(request: Request) {
       );
     }
 
+    const probe = await probeAnthropic(anthropic);
+    if (probe) return NextResponse.json({ error: probe.message }, { status: probe.status });
     const stream = buildAnthropicStream(anthropic, SYSTEM_PROMPT, promptInput);
     return new Response(stream, { headers: STREAM_HEADERS });
   } catch (err) {

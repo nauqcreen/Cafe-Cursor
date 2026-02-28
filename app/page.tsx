@@ -209,7 +209,19 @@ function HomeContent() {
         accumulated += decoder.decode(value, { stream: true });
         setGeneratedRules(accumulated);
       }
-      setGeneratedRules((prev) => prev.trim());
+      const trimmed = accumulated.trim();
+      const errorLine = trimmed.split("\n")[0];
+      try {
+        const parsed = errorLine ? JSON.parse(errorLine) : null;
+        if (parsed && typeof parsed.error === "string") {
+          toast.error(parsed.error);
+          setGeneratedRules("");
+          return;
+        }
+      } catch {
+        // not an error payload
+      }
+      setGeneratedRules(trimmed);
       if (githubUrl) {
         addRecentRepo(githubUrl);
         setRecentRepos(getRecentRepos());
@@ -295,6 +307,7 @@ function HomeContent() {
       return;
     }
     if (!generatedRules) return;
+    const rulesBeforeRefine = generatedRules;
     setIsRefining(true);
     setGeneratedRules("");
     try {
@@ -302,7 +315,7 @@ function HomeContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          existingRules: generatedRules,
+          existingRules: rulesBeforeRefine,
           refinementPrompt: refineInput.trim(),
         }),
       });
@@ -321,7 +334,19 @@ function HomeContent() {
         accumulated += decoder.decode(value, { stream: true });
         setGeneratedRules(accumulated);
       }
-      setGeneratedRules((prev) => prev.trim());
+      const trimmed = accumulated.trim();
+      const errorLine = trimmed.split("\n")[0];
+      try {
+        const parsed = errorLine ? JSON.parse(errorLine) : null;
+        if (parsed && typeof parsed.error === "string") {
+          toast.error(parsed.error);
+          setGeneratedRules(rulesBeforeRefine);
+          return;
+        }
+      } catch {
+        /* not error payload */
+      }
+      setGeneratedRules(trimmed);
       setRefineInput("");
       toast.success("Rules refined.");
     } catch {
@@ -732,8 +757,8 @@ function HomeContent() {
               <div className="flex items-center gap-3">
                 <a
                   href={curlRepoSlug !== "<owner>/<repo>" ? badgeAppUrl : BASE_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
+            target="_blank"
+            rel="noopener noreferrer"
                   title="Open CursorContext Architect"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -779,7 +804,7 @@ function HomeContent() {
             </div>
           </div>
         )}
-      </div>
+        </div>
     </div>
   );
 }

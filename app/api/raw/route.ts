@@ -4,6 +4,7 @@ import {
   parseRepoParam,
   buildRepoPromptInput,
   buildAnthropicStream,
+  probeAnthropic,
   trackRepo,
   SYSTEM_PROMPT,
 } from "@/lib/repo-utils";
@@ -35,9 +36,16 @@ export async function GET(request: Request) {
   }
 
   try {
+    const anthropic = new Anthropic({ apiKey });
+    const probe = await probeAnthropic(anthropic);
+    if (probe) {
+      return new Response(`Error: ${probe.message}\n`, {
+        status: probe.status,
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
     const promptInput = await buildRepoPromptInput(parsed.owner, parsed.repo);
     trackRepo(`${parsed.owner}/${parsed.repo}`);
-    const anthropic = new Anthropic({ apiKey });
     const stream = buildAnthropicStream(anthropic, SYSTEM_PROMPT, promptInput);
 
     return new Response(stream, {
