@@ -172,6 +172,7 @@ export function buildAnthropicStream(
 ): ReadableStream {
   const encoder = new TextEncoder();
   const ERROR_MESSAGES: Record<number | string, string> = {
+    400: "Anthropic API báo lỗi 400 — có thể tài khoản hết credits. Kiểm tra tại console.anthropic.com/billing.",
     403: "Anthropic API không khả dụng từ khu vực của bạn (403). Thử VPN hoặc chạy từ vùng được hỗ trợ.",
     ENOTFOUND: "Không thể kết nối đến api.anthropic.com. Kiểm tra mạng hoặc DNS (thử đổi sang 8.8.8.8 / 1.1.1.1).",
     TIMEOUT: "Request đến Anthropic bị timeout (>15s). Kiểm tra kết nối mạng.",
@@ -195,6 +196,7 @@ export function buildAnthropicStream(
         if (!err) { closed = true; try { controller.close(); } catch { /* noop */ } return; }
         const status = typeof (err as { status?: number }).status === "number" ? (err as { status: number }).status : 0;
         const code = (err as { code?: string }).code ?? "";
+        if (status === 400) return sendError(ERROR_MESSAGES[400]);
         if (status === 403) return sendError(ERROR_MESSAGES[403]);
         if (code === "ENOTFOUND") return sendError(ERROR_MESSAGES.ENOTFOUND);
         if (err.name === "AbortError") return sendError(ERROR_MESSAGES.TIMEOUT);
