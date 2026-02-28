@@ -1,57 +1,82 @@
 # CursorContext Architect
 
-> Dán link GitHub repo → nhận file `.cursorrules` được tối ưu cho dự án của bạn trong vài giây.
+**Dán link GitHub repo → nhận file `.cursorrules` tối ưu cho dự án đó trong vài giây.**
+
+Thay vì tự viết `.cursorrules` từ đầu (mất 30–60 phút, dễ bỏ sót), công cụ này đọc thẳng vào codebase của bạn — dependencies, README, cấu trúc thư mục — rồi dùng Claude AI để sinh ra một bộ rules chính xác cho tech stack đó.
 
 **Live:** [cafe-cursor-sepia.vercel.app](https://cafe-cursor-sepia.vercel.app)
 
 ---
 
-## Tính năng
+## Dùng như thế nào?
 
-| | |
-|---|---|
-| **Generate từ GitHub repo** | Tự động fetch `package.json`, `README`, cấu trúc thư mục gốc, rồi đưa vào Claude để sinh rules |
-| **Generate từ mô tả thủ công** | Dán `package.json` hoặc liệt kê tech stack — không cần repo public |
-| **Streaming real-time** | Rules được stream về từng dòng, không phải chờ toàn bộ |
-| **Refine rules** | Nhập yêu cầu điều chỉnh, AI viết lại dựa trên rules hiện có |
-| **Export to GitHub Gist** | Chia sẻ rules dưới dạng public Gist chỉ một click |
-| **CLI (curl)** | Dùng thẳng trong terminal, không cần mở browser |
-| **🔥 Global Trending** | Bảng xếp hạng repo được generate nhiều nhất, lưu trên Redis |
-| **Recent Generations** | localStorage lưu 5 repo gần nhất, click để generate lại ngay |
+### Cách 1 — Dán GitHub URL (phổ biến nhất)
+
+1. Mở [cafe-cursor-sepia.vercel.app](https://cafe-cursor-sepia.vercel.app)
+2. Dán link repo vào ô đầu tiên, ví dụ: `https://github.com/shadcn-ui/ui`
+3. Nhấn **Generate Rules**
+4. Rules stream về real-time — copy hoặc download file `.cursorrules`
+
+Công cụ tự động đọc `package.json`, `README.md`, và cấu trúc thư mục gốc của repo đó để sinh rules phù hợp nhất.
 
 ---
 
-## CLI
+### Cách 2 — Mô tả thủ công (khi repo private hoặc chưa có)
 
-Không cần browser. Chạy thẳng trong terminal:
+Bỏ qua ô GitHub URL, dán thẳng nội dung `package.json` hoặc liệt kê tech stack vào ô textarea:
+
+```
+Next.js 14, Tailwind CSS, Supabase, TypeScript, Shadcn UI, Zustand
+```
+
+Nhấn **Generate Rules** — kết quả tương đương Cách 1.
+
+---
+
+### Cách 3 — Terminal / CLI (cho dev workflow)
+
+Không cần mở browser. Chạy thẳng một lệnh, rules được lưu vào file:
 
 ```bash
-# Lấy rules cho một repo bất kỳ
 curl -sL "https://cafe-cursor-sepia.vercel.app/api/raw?repo=shadcn-ui/ui" > .cursorrules
-
-# Hoặc dùng full GitHub URL
-curl -sL "https://cafe-cursor-sepia.vercel.app/api/raw?repo=https://github.com/vercel/next.js" > .cursorrules
 ```
+
+Thay `shadcn-ui/ui` bằng `owner/repo` bất kỳ. Có thể tích hợp vào script onboarding của team.
+
+---
+
+## Các tính năng khác
+
+**Refine Rules** — Sau khi có rules, nhập yêu cầu điều chỉnh vào ô bên dưới (ví dụ: *"thêm rules cho Vitest"*, *"bỏ phần về CSS modules"*). AI sẽ viết lại toàn bộ dựa trên rules hiện có, không cần generate lại từ đầu.
+
+**Export to GitHub Gist** — Nhấn nút **Share via Gist** để tạo một public Gist chứa file `.cursorrules`. Nhận về link để chia sẻ với team hoặc lưu tham khảo.
+
+**Shields.io Badge** — Sau khi generate, mục *Share your rules* hiện sẵn đoạn Markdown để gắn badge vào README repo của bạn, dẫn thẳng về trang generate cho repo đó.
+
+**🔥 Global Trending** — Bảng xếp hạng real-time các repo được cộng đồng generate nhiều nhất. Click vào bất kỳ repo nào để generate ngay — không cần gõ lại URL.
+
+**Recent Generations** — 5 repo bạn vừa generate gần nhất được lưu local trong browser. Tiện cho demo hoặc dùng lại nhiều lần.
 
 ---
 
 ## Chạy local
 
-**1. Clone & cài dependencies**
 ```bash
 git clone https://github.com/nauqcreen/Cafe-Cursor.git
 cd Cafe-Cursor
 npm install
 ```
 
-**2. Tạo `.env.local`**
+Tạo file `.env.local`:
+
 ```env
-ANTHROPIC_API_KEY=sk-ant-...
-GITHUB_TOKEN=github_pat_...      # để tạo Gist (optional)
-REDIS_URL=redis://...            # để dùng Global Trending (optional)
+ANTHROPIC_API_KEY=sk-ant-...       # bắt buộc — lấy tại console.anthropic.com
+GITHUB_TOKEN=github_pat_...        # optional — để dùng tính năng Export to Gist
+REDIS_URL=redis://...              # optional — để dùng bảng Global Trending
 ```
 
-**3. Chạy dev server**
+Chạy:
+
 ```bash
 npm run dev
 # → http://localhost:3000
@@ -59,68 +84,25 @@ npm run dev
 
 ---
 
-## Kiến trúc
+## Kiến trúc nhanh
 
 ```
-app/
-├── page.tsx                 # UI chính — client component, streaming, state
-├── api/
-│   ├── generate/route.ts    # POST: generate hoặc refine rules (streaming)
-│   ├── raw/route.ts         # GET:  CLI endpoint, trả plain text stream
-│   ├── gist/route.ts        # POST: tạo GitHub Gist
-│   └── trending/route.ts    # GET:  top 5 repos từ Redis sorted set
-lib/
-├── repo-utils.ts            # fetchPackageJson, fetchRepoTree, buildAnthropicStream, trackRepo
-├── redis.ts                 # ioredis singleton
-└── utils.ts                 # cn()
-scripts/
-└── fetch-rules.sh           # Batch fetch .cursorrules cho nhiều repo
+Người dùng nhập URL
+    ↓
+API fetch GitHub (package.json + README + cấu trúc thư mục)
+    ↓
+Claude AI sinh .cursorrules (streaming từng dòng về client)
+    ↓
+Redis ghi +1 vào bảng Trending (background, không block response)
 ```
 
-**Data flow (generate từ GitHub URL):**
-
-```
-Client  →  POST /api/generate  →  GitHub API (package.json + README + tree)
-                               →  Claude claude-3-5-haiku (streaming)
-                               →  ReadableStream về client
-                               →  Redis zincrby (background, non-blocking)
-```
-
----
-
-## Biến môi trường
-
-| Biến | Bắt buộc | Mô tả |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | ✅ | Claude API key |
-| `GITHUB_TOKEN` | ⬜ | Personal Access Token để tạo Gist |
-| `REDIS_URL` | ⬜ | Redis connection string cho Global Trending |
+Toàn bộ logic AI nằm trong `lib/repo-utils.ts`. Các API route chỉ là thin wrapper.
 
 ---
 
 ## Stack
 
-- **Framework:** Next.js 16 (App Router, Turbopack)
-- **AI:** Anthropic Claude (`@anthropic-ai/sdk`)
-- **UI:** Shadcn UI, Tailwind CSS v4, Radix UI, Lucide
-- **Database:** Redis via `ioredis` (Upstash/Redis Labs)
-- **Syntax highlight:** `react-syntax-highlighter` + Prism `vscDarkPlus`
-- **Deploy:** Vercel
-
----
-
-## Scripts tiện ích
-
-```bash
-# Batch fetch .cursorrules cho 5 repo nổi tiếng
-./scripts/fetch-rules.sh
-
-# Dùng URL khác (e.g. local dev)
-./scripts/fetch-rules.sh http://localhost:3000
-
-# Lưu vào thư mục riêng
-OUT_DIR=./rules ./scripts/fetch-rules.sh
-```
+Next.js 16 · Anthropic Claude · Shadcn UI · Tailwind CSS v4 · ioredis · Vercel
 
 ---
 
