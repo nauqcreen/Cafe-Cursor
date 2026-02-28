@@ -164,24 +164,6 @@ export async function buildRepoPromptInput(owner: string, repo: string): Promise
 
 const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 
-/** Probe Anthropic API; returns null if OK, or { status, message } if blocked (e.g. 403). */
-export async function probeAnthropic(anthropic: Anthropic): Promise<{ status: number; message: string } | null> {
-  try {
-    await anthropic.messages.create({
-      model: ANTHROPIC_MODEL,
-      max_tokens: 1,
-      messages: [{ role: "user", content: "Hi" }],
-    });
-    return null;
-  } catch (err: unknown) {
-    const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : 500;
-    const message =
-      status === 403
-        ? "Anthropic API không khả dụng từ khu vực của bạn (403). Thử VPN hoặc chạy từ vùng được hỗ trợ."
-        : err instanceof Error ? err.message : "Anthropic request failed.";
-    return { status, message };
-  }
-}
 
 export function buildAnthropicStream(
   anthropic: Anthropic,
