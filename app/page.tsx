@@ -337,7 +337,7 @@ function HomeContent() {
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3 sm:px-6">
           <CursorLogo />
           <a
-            href="https://github.com/brian-mott/cursor-context-architect"
+            href="https://github.com/nauqcreen/Cafe-Cursor"
             target="_blank"
             rel="noopener noreferrer"
             className={cn(
