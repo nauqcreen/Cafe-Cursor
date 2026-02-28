@@ -194,8 +194,8 @@ export function buildAnthropicStream(
       const finish = (err?: Error) => {
         if (closed) return;
         if (!err) { closed = true; try { controller.close(); } catch { /* noop */ } return; }
-        const status = typeof (err as { status?: number }).status === "number" ? (err as { status: number }).status : 0;
-        const code = (err as { code?: string }).code ?? "";
+        const status = typeof (err as unknown as { status?: number }).status === "number" ? (err as unknown as { status: number }).status : 0;
+        const code = (err as unknown as { code?: string }).code ?? "";
         if (status === 400) return sendError(ERROR_MESSAGES[400]);
         if (status === 403) return sendError(ERROR_MESSAGES[403]);
         if (code === "ENOTFOUND") return sendError(ERROR_MESSAGES.ENOTFOUND);

@@ -564,8 +564,6 @@ function HomeContent() {
           </CardContent>
         </Card>
 
-        </div> {/* end Input Card */}
-
         {/* Terminal Integration */}
         <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
           <div className="mb-2 flex items-center gap-2">
