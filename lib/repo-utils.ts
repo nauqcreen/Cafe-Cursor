@@ -171,53 +171,64 @@ export function buildAnthropicStream(
   userContent: string
 ): ReadableStream {
   const encoder = new TextEncoder();
-  const ERROR_403_MSG =
-    "Anthropic API không khả dụng từ khu vực của bạn (403). Thử VPN hoặc chạy từ vùng được hỗ trợ.";
+  const ERROR_MESSAGES: Record<number | string, string> = {
+    403: "Anthropic API không khả dụng từ khu vực của bạn (403). Thử VPN hoặc chạy từ vùng được hỗ trợ.",
+    ENOTFOUND: "Không thể kết nối đến api.anthropic.com. Kiểm tra mạng hoặc DNS (thử đổi sang 8.8.8.8 / 1.1.1.1).",
+    TIMEOUT: "Request đến Anthropic bị timeout (>15s). Kiểm tra kết nối mạng.",
+  };
 
   return new ReadableStream({
     async start(controller) {
       let closed = false;
-      const finish = (err?: Error) => {
+      const sendError = (msg: string) => {
         if (closed) return;
         closed = true;
-        if (err) {
-          const status = typeof (err as { status?: number }).status === "number" ? (err as { status: number }).status : 0;
-          if (status === 403) {
-            try {
-              controller.enqueue(encoder.encode(JSON.stringify({ error: ERROR_403_MSG }) + "\n"));
-              controller.close();
-            } catch {
-              controller.error(err);
-            }
-          } else {
-            controller.error(err);
-          }
-        } else {
-          try {
-            controller.close();
-          } catch {
-            // already closed
-          }
+        try {
+          controller.enqueue(encoder.encode(JSON.stringify({ error: msg }) + "\n"));
+          controller.close();
+        } catch {
+          controller.error(new Error(msg));
         }
       };
+      const finish = (err?: Error) => {
+        if (closed) return;
+        if (!err) { closed = true; try { controller.close(); } catch { /* noop */ } return; }
+        const status = typeof (err as { status?: number }).status === "number" ? (err as { status: number }).status : 0;
+        const code = (err as { code?: string }).code ?? "";
+        if (status === 403) return sendError(ERROR_MESSAGES[403]);
+        if (code === "ENOTFOUND") return sendError(ERROR_MESSAGES.ENOTFOUND);
+        if (err.name === "AbortError") return sendError(ERROR_MESSAGES.TIMEOUT);
+        closed = true;
+        controller.error(err);
+      };
+
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), 15_000);
+
       try {
-        const messageStream = anthropic.messages.stream({
-          model: ANTHROPIC_MODEL,
-          max_tokens: 8192,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userContent }],
-        });
+        const messageStream = anthropic.messages.stream(
+          {
+            model: ANTHROPIC_MODEL,
+            max_tokens: 8192,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userContent }],
+          },
+          { signal: abort.signal }
+        );
         messageStream.on("text", (delta) => {
           if (delta) controller.enqueue(encoder.encode(delta));
         });
-        messageStream.once("end", () => finish());
+        messageStream.once("end", () => { clearTimeout(timer); finish(); });
         messageStream.on("error", (err) => {
+          clearTimeout(timer);
           console.error("[anthropic stream]", err);
           finish(err as Error & { status?: number });
         });
         await messageStream.done();
+        clearTimeout(timer);
         finish();
       } catch (err) {
+        clearTimeout(timer);
         console.error("[anthropic stream]", err);
         const e = err instanceof Error ? err : new Error(String(err));
         finish(e as Error & { status?: number });
