@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { redis } from "@/lib/redis";
+import { getRedis } from "@/lib/redis";
 
 export const revalidate = 60;
 
 export async function GET() {
   try {
-    // zrevrange with WITHSCORES returns [member, score, member, score, ...]
+    const redis = getRedis();
+    if (!redis) return NextResponse.json({ trending: [] });
+
     const raw = await redis.zrevrange("trending_repos", 0, 4, "WITHSCORES");
 
     const results: { repo: string; count: number }[] = [];

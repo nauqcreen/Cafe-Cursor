@@ -1,16 +1,16 @@
 import Redis from "ioredis";
 
-// Re-use a single connection across hot-reloads in dev
 const globalForRedis = globalThis as unknown as { redis?: Redis };
 
-function createClient() {
-  const url = process.env.REDIS_URL;
-  if (!url) throw new Error("REDIS_URL environment variable is not set.");
-  return new Redis(url, {
+function createClient(): Redis {
+  return new Redis(process.env.REDIS_URL!, {
     maxRetriesPerRequest: 3,
     connectTimeout: 10_000,
   });
 }
 
-export const redis: Redis =
-  globalForRedis.redis ?? (globalForRedis.redis = createClient());
+/** Returns a Redis client, or null if REDIS_URL is not configured. */
+export function getRedis(): Redis | null {
+  if (!process.env.REDIS_URL) return null;
+  return (globalForRedis.redis ??= createClient());
+}

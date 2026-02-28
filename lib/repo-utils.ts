@@ -1,15 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { redis } from "@/lib/redis";
+import { getRedis } from "@/lib/redis";
 
 /**
  * Increment the trending score for a repo slug (owner/repo).
- * Fire-and-forget — never throws, never blocks the main response.
+ * Fire-and-forget — no-ops silently if REDIS_URL is not configured.
  */
 export function trackRepo(slug: string): void {
   if (!slug) return;
-  redis.zincrby("trending_repos", 1, slug).catch(() => {
-    // Silently ignore Redis errors so they never affect the main flow
-  });
+  getRedis()
+    ?.zincrby("trending_repos", 1, slug)
+    .catch(() => {});
 }
 
 // ── Prompts ──────────────────────────────────────────────────────────────────
